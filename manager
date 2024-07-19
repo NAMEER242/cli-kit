@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Get the directory of the project (application-manager)
+APPLICATION_MANAGER_DIR="$(dirname "$(readlink -f "$0")")"
+# Load the configuration and common functions
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+# Directory to monitor for changes
+MONITORING_DIR="$MONITORING_FOLDER_DIR"
+# Script to run when changes are detected
+LINKER_SCRIPT="$APPLICATION_MANAGER_DIR/apps_linker"
+
+# Ensure the update main folder is executable recursively
+sudo chmod -R 777 "$APPLICATION_MANAGER_DIR"
+sudo find $APPLICATION_MANAGER_DIR -type f -exec chmod +x {} \;
+
+# Monitor the directory for changes
+inotifywait -m -r -e modify,create,delete,delete_self,move "$MONITORING_DIR" --format '%w%f' |
+while read change; do
+    log "Change detected: $change"
+    sudo chmod -R 777 "$APPLICATION_MANAGER_DIR"
+    sudo "$LINKER_SCRIPT"
+done

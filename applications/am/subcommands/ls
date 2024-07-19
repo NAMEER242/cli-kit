@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+list_linked_commands() {
+  dir_with_files=$1
+  specific_dir=$2
+
+  echo -e "Applications installed in $dir_with_files: \n"
+
+  # Iterate over the files in the directory
+  for file in "$dir_with_files"/*; do
+      # Check if the file is a symlink
+      if [ -L "$file" ]; then
+          # Get the real path of the symlink
+          real_path=$(readlink -f "$file")
+          # Check if the real path is in the specific directory or one of its subdirectories
+          if [[ "$real_path" == "$specific_dir"* ]]; then
+              # Print the symlink and its real path
+              echo "$(basename $file)"
+              # echo "Real path: $real_path"
+          fi
+      fi
+  done
+}
+
+list_linked_commands "$LINK_FOLDER_DIR" "$APPLICATION_MANAGER_DIR/applications"

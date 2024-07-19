@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+
+log() {
+  local mode=$1
+  mode=${mode,,} # Convert to lowercase
+
+  # Check if the mode is available
+  if [[ "$mode" == "error" || "$mode" == "info" || "$mode" == "warning" || "$mode" == "ok" ]]; then
+    local message=$2
+  else
+    local message=$1
+  fi
+
+  RED='\033[0;31m'
+  INFO='\033[0;36m'
+  WARNING='\033[0;33m'
+  OK='\033[0;32m'
+  GRAY='\033[0;90m'
+  NC='\033[0m' # No Color
+
+  script_name=${0##*/}
+  timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Check the mode and print the log message
+  case $mode in
+    "error")
+    local log="$timestamp  [ERROR] $script_name  -  $message"
+      echo -e "${GRAY}$timestamp  ${RED}[ERROR] ${INFO}[$script_name]${RED}  -  $message${NC}"
+      ;;
+    "info")
+    local log="$timestamp  [INFO] $script_name  -  $message"
+      echo -e "${GRAY}$timestamp  ${INFO}[INFO] ${INFO}[$script_name]${INFO}  -  $message${NC}"
+      ;;
+    "warning")
+    local log="$timestamp  [WARNING] $script_name  -  $message"
+      echo -e "${GRAY}$timestamp  ${WARNING}[WARNING] ${INFO}[$script_name]${WARNING}  -  $message${NC}"
+      ;;
+    "ok")
+    local log="$timestamp  [OK] [$script_name]  -  $message"
+      echo -e "${GRAY}$timestamp  ${OK}[WARNING] ${INFO}[$script_name]${OK}  -  $message${NC}"
+      ;;
+    *)
+      local log="$timestamp  [$script_name]  -  $message"
+      echo -e "${NC}$log${NC}"
+      ;;
+  esac
+
+  # Append the log message to the log file
+  append_to_log "$log"
+}
+
+append_to_log() {
+  local log_message=$1
+  local log_file="$(dirname "$(readlink -f "$0")")/logs"
+  local max_lines=1000000
+
+  # Append the message to the log file
+  echo "$log_message" >> "$log_file"
+
+  # Check the number of lines in the log file
+  local line_count=$(wc -l <"$log_file")
+
+  # If the number of lines exceeds the limit, remove the oldest lines
+  if (( line_count > max_lines )); then
+    local excess_lines=$((line_count - max_lines))
+    sed -i "1,${excess_lines}d" "$log_file"
+  fi
+}
+
+#add_path_to_profile() {
+#  # Define the file to modify
+#  local profile_dir="/home/toor/.profile"
+#
+#  # Check if the .profile file exists
+#  if [ ! -f "$profile_dir" ]; then
+#    log ".profile file does not exist at $profile_dir"
+#    return 1
+#  fi
+#
+#  # Define the lines to add
+#  local path="PATH=\"$1:\$PATH\""
+#  local lines_to_add="# set PATH so it includes applications manager links folder if it exists
+#if [ -d \"$1\" ] ; then
+#  $path
+#fi"
+#
+#  # Check if the lines are already in the file
+#  if grep -qF "$path" "$profile_dir"; then
+#    log "The application manager links path are already in .profile"
+#    return 0
+#  fi
+#
+#  # Append the lines to the file using EOF
+#  cat << EOF >> "$profile_dir"
+#
+#$lines_to_add
+#
+#EOF
+#
+#  # Source the file to apply the changes
+#  source $profile_dir
+#
+#  log "application manager links directory added to .profile"
+#}
+
+delete_linked_commands() {
+  dir_with_files=$1
+  specific_dir=$2
+
+  # Iterate over the files in the directory
+  for file in "$dir_with_files"/*; do
+      # Check if the file is a symlink
+      if [ -L "$file" ]; then
+          # Get the real path of the symlink
+          real_path=$(readlink "$file")
+          # Check if the real path is in the specific directory or one of its subdirectories
+          if [[ "$real_path" == "$specific_dir"* ]]; then
+              # delete the symlink
+              rm "$file"
+          fi
+      fi
+  done
+}
+
+run_subcommand() {
+  local subcommands_folder_dir="$1"
+  local command_name="$2"
+
+  # Check if the subcommands folder directory is provided
+  if [[ -z "$subcommands_folder_dir" ]]; then
+    log "Subcommands folder directory are required"
+    return 1
+  fi
+
+  # Check if the path is a directory
+  if [ -d "$subcommands_folder_dir" ]; then
+    # Check if the file exists in the directory
+    if [ -f "$subcommands_folder_dir/$command_name" ]; then
+      # Run the file
+      shift 2
+      source "$subcommands_folder_dir/$command_name" $@
+    else
+      return 242
+    fi
+  else
+    log "$subcommands_folder_dir is not a directory"
+    return 242
+  fi
+
+  return 0
+}
+
+run_command() {
+  local subcommands_folder_dir="$1"
+
+  # Check if the folder directory is provided
+  if [[ -z "$subcommands_folder_dir" ]]; then
+    log "Subcommands folder directory are required"
+    return 1
+  else
+    shift 1
+  fi
+
+  # Run subcommands
+  set +e
+  run_subcommand $subcommands_folder_dir $@
+  local subcommand_status=$?
+  set -e
+
+  # check if the subcommand runs successfully, else run the run() function, else run the default() function
+  if [ $subcommand_status -eq 242 ]; then
+    if type "run" &> /dev/null; then
+      run $@
+    else
+      if type "default" &> /dev/null; then
+        default $@
+      else
+        log "This command does not provide a default function or a run function"
+        return 1
+      fi
+    fi
+  elif [ $subcommand_status -ne 0 ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+restart_systemctl_service() {
+  SERVICE_NAME=$1
+
+  # Stop the service
+  sudo systemctl stop $SERVICE_NAME
+
+  # Disable the service
+  sudo systemctl disable $SERVICE_NAME
+
+  if [ -f "/etc/systemd/system/$SERVICE_NAME" ]; then
+    # Remove the service
+    sudo rm /etc/systemd/system/$SERVICE_NAME
+  fi
+
+  # Reload the systemd daemon
+  sudo systemctl daemon-reload
+  sudo systemctl reset-failed
+}
