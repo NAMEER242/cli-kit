@@ -1,0 +1,32 @@
+print_certifications_table() {
+  # Command output from `sudo certbot certificates`
+  certbot_output=$(sudo certbot certificates)
+
+  # Use awk to parse the certbot output and extract the required information
+  readarray -t certificates < <(echo "$certbot_output" | awk -F": " '/Certificate Name/{name=$2} /Expiry Date/{date=$2} /VALID/{days=$3; print name " " date " " days}')
+
+  # Initialize an empty arrays
+  declare -a cert_names
+  declare -a expiry_dates
+  declare -a certs_days_left
+
+  # Loop through the certificates array and format the output
+  for cert in "${certificates[@]}"; do
+    # Extract Certificate Name
+    cert_names+=("$(echo "$cert" | awk '{print $1}')")
+    # Extract Expiry Date
+    expiry_dates+=("$(echo "$cert" | awk '{print $2" "$3}')")
+    # Extract Days Left
+    certs_days_left+=("$(echo "$cert" | awk '{print $4" "$5" "$6}')")
+  done
+
+  # Print table header
+  printf "\n%-50s %-30s %-25s\n" "Certificate Name" "Expiry Date" "Days Left"
+  printf '%*s \n' "105" | tr ' ' "="
+
+  # Loop through each certificate and print details in a formatted table
+  for ((i = 0; i < ${#cert_names[@]}; i++)); do
+    # Print each certificate's details in a formatted manner
+    printf "%-50s %-30s %-25s\n" "${cert_names[$i]}" "${expiry_dates[$i]}" "${certs_days_left[$i]}"
+  done
+}

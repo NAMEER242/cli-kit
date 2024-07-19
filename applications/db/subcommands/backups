@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+. "$APPLICATION_DIR/.env"
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+# Function to format date
+format_date() {
+    echo "$1" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\).*/\1\/\2\/\3/'
+}
+
+BACKUPS_PATH=$BACKUPS_FOLDER
+# Check if the substring flag is provided
+if [ "$1" == "-s" ] || [ "$1" == "--substring" ]; then
+    SUBSTRING=true
+    PROVIDED_DATABASE_NAME=$2
+else
+    SUBSTRING=false
+    PROVIDED_DATABASE_NAME=$1
+fi
+
+# Check if folder exists
+if [ ! -d "$BACKUPS_PATH" ]; then
+    log error "Folder not found!"
+    exit 1
+fi
+
+# Get list of files in the folder
+files=$(ls "$BACKUPS_PATH")
+
+# Declare associative arrays to store dates for each database
+declare -A db_dates_start
+declare -A db_dates_end
+
+# Parse filenames
+for file in $files; do
+    # check if the file is not symlink
+    if [ -L "$BACKUPS_PATH/$file" ]; then
+        continue
+    fi
+
+    # Extract date and database name from filename
+    db_date=$(echo "$file" | cut -d'.' -f1)
+    db_name=$(echo "$file" | cut -d'.' -f2)
+
+    # check if the provided database is defined and skip the file if it is not the one
+    if [ "$SUBSTRING" = true ]; then
+        if [[ -n $PROVIDED_DATABASE_NAME ]] && [[ ! "$db_name" == *"$PROVIDED_DATABASE_NAME"* ]]; then
+            continue
+        fi
+    else
+        if [[ -n $PROVIDED_DATABASE_NAME ]] && [ "$db_name" != "$PROVIDED_DATABASE_NAME" ]; then
+            continue
+        fi
+    fi
+
+    # Format date
+    formatted_date=$(format_date "$db_date")
+    # Convert date to timestamp
+    timestamp=$(date -d"$formatted_date" +%s)
+
+    # Convert start and end dates to timestamps if start and end are defined
+    if [ -n "${db_dates_start[$db_name]}" ]; then
+#        echo "start date is ${db_dates_start[$db_name]} for name $db_name"
+        timestamp_start=$(date -d"${db_dates_start[$db_name]}" +%s)
+    fi
+    if [ -n "${db_dates_end[$db_name]}" ]; then
+#        echo "end date is ${db_dates_end[$db_name]} for name $db_name"
+        timestamp_end=$(date -d"${db_dates_end[$db_name]}" +%s)
+    fi
+
+    # Check and store the start and end dates for each database
+    if [ -z "${db_dates_start[$db_name]}" ] || [ "$timestamp" -lt "$timestamp_start" ]; then
+        db_dates_start[$db_name]="$formatted_date"
+    fi
+    if [ -z "${db_dates_end[$db_name]}" ] || [ "$timestamp" -gt "$timestamp_end" ]; then
+        db_dates_end[$db_name]="$formatted_date"
+    fi
+done
+
+# Print the results
+for db_name in "${!db_dates_start[@]}"; do
+    log info "Database: $db_name, Backup Range: [${db_dates_start[$db_name]} - ${db_dates_end[$db_name]}]"
+done

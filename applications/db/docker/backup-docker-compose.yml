@@ -1,0 +1,14 @@
+version: "2"
+
+services:
+  mysql-cron-backup:
+    image: fradelg/mysql-cron-backup
+    container_name: mysql_cron_backup
+    volumes:
+      - /home/toor/backup/db:/backup
+    restart: unless-stopped
+    env_file:
+      - .env
+
+volumes:
+  data:

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  my_sql_container:
+    image: mysql/mysql-server
+    container_name: my_sql_container
+    ports:
+      - "3306:3306"
+    restart: always
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql.cnf:/etc/mysql/my.cnf
+    env_file:
+      - .env
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin
+    ports:
+      - "8080:80"
+    links:
+      - my_sql_container:db
+    restart: always
+    env_file:
+      - .env

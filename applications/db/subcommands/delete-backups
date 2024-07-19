@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+
+. "$APPLICATION_DIR/.env"
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]
+  then log error "Please run as root or use sudo"
+  exit
+fi
+
+# Function to format date
+format_date() {
+    echo "$1" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\).*/\1\/\2\/\3/'
+}
+
+BACKUPS_PATH=$BACKUPS_FOLDER
+PROVIDED_DATABASE_NAME=$1
+# Check if database dates are provided
+if [ "$2" == "all" ]; then
+    DELETE_ALL=true
+else
+    DELETE_ALL=false
+    START_DATE=$(date -d"$2" +%s)
+    END_DATE=$(date -d"$3" +%s)
+fi
+
+# check if START_DATE and END_DATE are not empty
+if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+    log error "Invalid date format!"
+    exit 1
+fi
+
+# Check if folder exists
+if [ ! -d "$BACKUPS_PATH" ]; then
+    log error "Folder not found!"
+    exit 1
+fi
+
+# Get list of files in the folder
+files=$(ls "$BACKUPS_PATH")
+
+# Declare an array to store files to be deleted
+declare -a files_to_delete=()
+
+# Loop through each file
+for file in $files; do
+    # check if the file is not symlink
+    if [ -L "$BACKUPS_PATH/$file" ]; then
+        continue
+    fi
+
+    # Extract date and database name from filename
+    db_date=$(echo "$file" | cut -d'.' -f1)
+    db_name=$(echo "$file" | cut -d'.' -f2)
+
+    # Format date
+    formatted_date=$(format_date "$db_date")
+    # Convert date to timestamp
+    timestamp=$(date -d"$formatted_date" +%s)
+
+    # Check if the database name matches and the date falls within the range
+    if [ "$db_name" == "$PROVIDED_DATABASE_NAME" ] && [ "$DELETE_ALL" == true ]; then
+        # Add the file to the list of files to be deleted
+        files_to_delete+=("$file")
+    elif [ "$db_name" == "$PROVIDED_DATABASE_NAME" ] && [ "$timestamp" -ge "$START_DATE" ] && [ "$timestamp" -le "$END_DATE" ]; then
+        # Add the file to the list of files to be deleted
+        files_to_delete+=("$file")
+    fi
+done
+
+# Display the files to be deleted
+log warning "The following files will be deleted:"
+if [ ${#files_to_delete[@]} -gt 10 ]; then
+    for file in "${files_to_delete[@]:0:3}"; do
+        log "$file"
+    done
+    log "..."
+    for file in "${files_to_delete[@]: -3}"; do
+            log "$file"
+        done
+else
+    for file in "${files_to_delete[@]}"; do
+        log "$file"
+    done
+fi
+
+# Ask for user confirmation
+read -p "Are you sure you want to delete these files? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    # Loop through each file in the list of files to be deleted
+    for file in "${files_to_delete[@]}"; do
+        # Delete the file
+        sudo rm "$BACKUPS_PATH/$file"
+        log warning "Deleted backup: $file"
+    done
+    log ok "Deleted backups for database: $PROVIDED_DATABASE_NAME from $(format_date "$START_DATE") to $(format_date "$END_DATE")"
+else
+    log info "Operation cancelled."
+fi

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -e
+
+DOMAIN=$1
+
+# Ensure file name and certificate name are provided
+if [ -z "$DOMAIN" ]; then
+    log error "Error: the domain argument must be provided."
+    log error "Usage: $0 <domain>"
+    exit 1
+fi
+
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]
+  then log error "Please run as root or use sudo"
+  exit
+fi
+
+# Extract subdomain from the domain.
+SUBDOMAIN="${DOMAIN%%.*}"
+if [ -z "$SUBDOMAIN" ]; then
+    log error "Error: Subdomain could not be extracted from domain: $DOMAIN."
+    exit 1
+fi
+
+# Delete the file from /etc/nginx/sites-available and /etc/nginx/sites-enabled
+log info "Deleting $SUBDOMAIN from /etc/nginx/sites-available and /etc/nginx/sites-enabled..."
+sudo rm -f /etc/nginx/sites-available/$SUBDOMAIN
+sudo rm -f /etc/nginx/sites-enabled/$SUBDOMAIN
+
+# Run certbot command to delete the certificate
+log info "Deleting certificate $DOMAIN..."
+sudo certbot delete --cert-name $DOMAIN
+
+log ok "Operation completed successfully."

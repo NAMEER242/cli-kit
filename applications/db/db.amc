@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+APPLICATION_DIR="$(dirname "$(readlink -f "$0")")"
+APPLICATION_MANAGER_DIR="$(dirname "$(dirname "$APPLICATION_DIR")")"
+
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+help() {
+  echo "Usage: $(basename $0) <command> [options]"
+  echo -e "db command is used to manage system databases and providing utilities commands to help manage databases.\n"
+  echo "Commands:"
+  echo "  backups [-s] <database-name>                                        List all available backups for some database name, else list all backups."
+  echo "  delete-backups <database-name> [<from_date to_date> | <all>]        Delete all backups for some database name."
+  echo "  restore-backup [-f|-l] <database>                                   Restore a backup for some database latest name or database file according to the given options."
+}
+
+default() {
+  help
+}
+
+# check if the first argument is "-h" or "--help"
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  help
+  exit 0
+fi
+
+# use run_command to run the main script
+run_command $APPLICATION_DIR/subcommands $@

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+. "$APPLICATION_DIR/.env"
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+BACKUPS_PATH=$BACKUPS_FOLDER
+
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]
+  then log error "Please run as root or use sudo"
+  exit
+fi
+
+# Function to print usage
+print_usage() {
+    echo "Usage: $0 [-l|-f] <database>"
+    echo "  -l: Use the latest backup"
+    echo "  -f: use the backup file provided"
+    echo "  <database>: The name of the database file if using -f flag else the name of the database to restore the latest version using -l flag"
+}
+
+# Parse options
+USE_LATEST=false
+USE_FILE=false
+
+# Check if the $1 and $2 name are provided
+if [ -z "$1" ] || [ -z "$2" ]; then
+    log error "Missing arguments."
+    print_usage
+    exit 1
+fi
+
+# Check which flag is provided
+if [ "$1" = "-l" ]; then
+    USE_LATEST=true
+elif [ "$1" = "-f" ]; then
+    USE_FILE=true
+fi
+
+DATABASE=$2
+
+# Determine the backup file to use
+if [ "$USE_LATEST" = true ]; then
+    BACKUP_FILE="latest.$DATABASE.sql.gz"
+else
+    BACKUP_FILE=$DATABASE
+fi
+
+# Check if the backup file exists
+if [ ! -f "$BACKUPS_PATH/$BACKUP_FILE" ]; then
+    log error "Backup file $BACKUPS_PATH/$BACKUP_FILE not found."
+    exit 1
+fi
+
+# Ask for user confirmation
+read -p "Are you sure you want to restore the database backup $BACKUP_FILE? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    # Run the Docker command
+    sudo docker container exec mysql_cron_backup /restore.sh /backup/$BACKUP_FILE
+else
+    log info "Operation cancelled."
+fi

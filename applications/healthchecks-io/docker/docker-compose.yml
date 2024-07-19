@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  healthchecks:
+    image: lscr.io/linuxserver/healthchecks:latest
+    container_name: healthchecks
+    volumes:
+      - /path/to/healthchecks/config:/config
+    ports:
+      - "6102:8000"
+    restart: unless-stopped
+    env_file:
+      - .env

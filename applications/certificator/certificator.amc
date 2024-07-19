@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -e
+
+APPLICATION_DIR="$(dirname "$(readlink -f "$0")")"
+APPLICATION_MANAGER_DIR="$(dirname "$(dirname "$APPLICATION_DIR")")"
+
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+help() {
+    echo "Usage: $(basename $0) <domain> <proxy_pass>"
+    echo
+    echo "This application sets up SSL certificates for the specified domain using Certbot"
+    echo "and configures Nginx to use these certificates."
+    echo
+    echo "Arguments:"
+    echo "  domain        The domain for which to obtain the SSL certificate."
+    echo "  proxy_pass    The proxy_pass url for the domain."
+    echo
+    echo "Examples:"
+    echo "  $(basename $0) add example.com http://localhost:3000"
+    echo "  $(basename $0) del example.com"
+    echo "  $(basename $0) ls example.com"
+    echo
+    echo "Commands:"
+    echo "  add          Add an SSL certificate for the specified domain and configure Nginx to use it."
+    echo "  del          Delete the SSL certificate for the specified domain and remove the Nginx configuration."
+    echo "  ls [-r]      List all SSL certificates and their associated domains from nginx sites config, use -r to list row data."
+}
+
+default() {
+  help
+}
+
+# check if the first argument is "-h" or "--help"
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  help
+  exit 0
+fi
+
+# use run_command to run the main script
+run_command $APPLICATION_DIR/subcommands $@

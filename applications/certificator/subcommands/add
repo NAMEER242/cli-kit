@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -e
+
+# Variables
+DOMAIN=$1
+PROXY_PASS=$2
+EMAIL="turathalanbiaait@gmail.com"
+NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
+NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
+CERTBOT_COMMAND="certbot certonly --standalone -d $DOMAIN --email $EMAIL --agree-tos --force-interactive"
+
+# Ensure domain, proxy_pass, and email are provided
+if [ -z "$DOMAIN" ] || [ -z "$PROXY_PASS" ] || [ -z "$EMAIL" ]; then
+    log error "Error: Domain, proxy_pass, and email must be provided."
+    log error "Usage: $0 <domain> <proxy_pass>"
+    exit 1
+fi
+
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]
+  then log error "Please run as root or use sudo"
+  exit
+fi
+
+# Obtain SSL certificate
+log info "Obtaining SSL certificate for $DOMAIN..."
+sudo $CERTBOT_COMMAND
+
+# Check if Certbot succeeded
+if [ $? -ne 0 ]; then
+    log error "Certbot failed to obtain a certificate."
+    exit 1
+fi
+
+# Extract subdomain from the domain.
+SUBDOMAIN="${DOMAIN%%.*}"
+if [ -z "$SUBDOMAIN" ]; then
+    log error "Error: Subdomain could not be extracted from domain: $DOMAIN."
+    exit 1
+fi
+
+# Create Nginx configuration file
+NGINX_CONF="$NGINX_SITES_AVAILABLE/$SUBDOMAIN"
+log info "Creating Nginx configuration for $DOMAIN..."
+
+sudo tee $NGINX_CONF > /dev/null <<EOF
+server {
+    server_name $DOMAIN;
+
+    location / {
+        proxy_pass $PROXY_PASS;
+    }
+
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if (\$host = $DOMAIN) {
+        return 301 https://\$host\$request_uri;
+    } # managed by Certbot
+
+    listen 80 ;
+    listen [::]:80 ;
+    server_name $DOMAIN;
+    return 404;
+}
+EOF
+
+# Enable the new site
+sudo ln -s $NGINX_CONF $NGINX_SITES_ENABLED/
+
+# Test Nginx configuration
+echo $(sudo nginx -t)
+
+# Reload Nginx
+if [ $? -eq 0 ]; then
+    log info "Reloading Nginx..."
+    sudo systemctl reload nginx
+else
+    log error "Nginx configuration test failed."
+    exit 1
+fi
+
+log ok "SSL certificate setup and Nginx configuration for $DOMAIN on $PROXY_PASS completed successfully."

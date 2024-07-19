@@ -1,0 +1,54 @@
+# Define the directory containing Nginx server configurations
+config_dir="/etc/nginx/sites-available"
+
+# Initialize an associative array to hold server details
+declare -A servers
+
+# Function to extract and process server configurations
+process_servers() {
+    for config_file in "$config_dir"/*; do
+        # Read server_name, proxy_pass, and listen directives
+        while IFS= read -r line; do
+            if [[ $line =~ server_name ]]; then
+                server_name=$(echo "$line" | awk '{print $2}' | tr -d ';')
+                current_server="$server_name"
+            elif [[ $line =~ proxy_pass ]]; then
+                proxy_pass=$(echo "$line" | awk '{print $2}' | tr -d ';')
+                servers["$current_server,proxy_pass"]="$proxy_pass"
+            elif [[ $line =~ listen ]]; then
+                listen_port=$(echo "$line" | awk '{print $2}' | tr -d ';')
+                # Append listen ports if multiple are found
+                if [[ -z ${servers["$current_server,listen"]} ]]; then
+                    servers["$current_server,listen"]="$listen_port"
+                else
+                    existing_port=${servers["$current_server,listen"]}
+                    servers["$current_server,listen"]="${existing_port}, ${listen_port}"
+                fi
+            fi
+            servers["$current_server,file_path"]="${config_file}"
+        done < <(grep -E 'server_name|proxy_pass|listen ' "$config_file")
+    done
+}
+
+# Print the table header
+print_table_header() {
+    printf "\n%-60s %-50s %-30s %-35s\n" "Config File Name" "Server Name" "Proxy Pass" "Listen on Port"
+    printf '%*s \n' "175" | tr ' ' "="
+}
+
+# Print server details in a formatted table
+print_servers() {
+    for key in "${!servers[@]}"; do
+        if [[ $key =~ ,proxy_pass$ ]]; then
+            server_name="${key%,proxy_pass}"
+            printf "%-60s %-50s %-30s %-35s\n" "${servers[$server_name,file_path]}" "$server_name" "${servers[$key]}" "${servers[$server_name,listen]}"
+        fi
+    done
+}
+
+# Main function to orchestrate the script
+print_nginx_servers_table() {
+    process_servers
+    print_table_header
+    print_servers
+}

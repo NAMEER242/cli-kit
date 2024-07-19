@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -e
+
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+. "$APPLICATION_DIR/utils/certbot"
+. "$APPLICATION_DIR/utils/nginx"
+
+# Check if the script is run as root
+if [ "$EUID" -ne 0 ]
+  then log error "Please run as root or use sudo"
+  exit
+fi
+
+print_tables() {
+  log info "Available certificates in certbot:"
+  print_certifications_table
+
+  echo ""
+
+  log info "Available servers in /etc/nginx/sites-available:"
+  print_nginx_servers_table
+}
+
+print_row_data() {
+  # print the available certificates in certbot
+  log info "Available certificates in certbot:"
+  CERTIFICATES=$(sudo certbot certificates)
+  log "$CERTIFICATES\n"
+
+  # print the available nginx sites in /etc/nginx/sites-available
+  log info "Available servers in /etc/nginx/sites-available:"
+  SERVERS=$(ls /etc/nginx/sites-available)
+  log "\n$SERVERS\n"
+
+  echo "if the site server config did not work check if it is enabled (symlinked) in /etc/nginx/sites-enabled"
+}
+
+run_row_data=false
+
+# Parse command-line arguments for -r or --row
+for arg in "$@"; do
+  if [[ "$arg" == "-r" || "$arg" == "--row" ]]; then
+    run_row_data=true
+    break
+  fi
+done
+
+# Decide which function to run based on the presence of the -r or --row flag
+if $run_row_data; then
+  print_row_data
+else
+  print_tables
+fi
