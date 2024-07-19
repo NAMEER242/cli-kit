@@ -12,7 +12,7 @@ APPLICATION_MANAGER_DIR="$(dirname "$(readlink -f "$0")")"
 APPLICATIONS_DIR="$APPLICATIONS_FOLDER_DIR"
 # Directory where symlinks will be created
 LINK_DIR="$LINK_FOLDER_DIR"
-COMMAND_EXTENSION="$APPLICATIONS_COMMAND_EXTENTION"
+COMMAND_EXTENSION="$APPLICATIONS_COMMAND_EXTENSION"
 
 # Check if the link directory exists
 if [[ ! -d "$LINK_DIR" ]]; then
