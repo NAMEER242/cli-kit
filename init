@@ -34,7 +34,7 @@ sudo chmod +x "$APPLICATION_MANAGER_DIR"
 
 log "Creating systemd service file at $SERVICE_FILE_DIR..."
 
-# Create the service file
+# Create the systemd service file
 echo "================================================="
 cat <<EOF | sudo tee "$SERVICE_FILE_DIR"
 [Unit]
