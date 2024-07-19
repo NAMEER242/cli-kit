@@ -1,3 +1,6 @@
+# Cli-Kit
+An implementation for application-manager-template that comes with a set of useful linux cli applications.
+
 # Application Manager
 
 Application Manager is a tool designed to create and manage CLI applications. It provides a structured way to register and manage applications,
