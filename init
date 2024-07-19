@@ -32,9 +32,6 @@ fi
 # Ensure the application-manager folder scripts are executable recursively
 sudo chmod +x "$APPLICATION_MANAGER_DIR"
 
-# Restart the service if it already exists
-restart_systemctl_service $SERVICE_FILE
-
 log "Creating systemd service file at $SERVICE_FILE_DIR..."
 
 # Create the service file
