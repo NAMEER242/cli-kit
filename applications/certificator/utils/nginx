@@ -38,11 +38,24 @@ print_table_header() {
 
 # Print server details in a formatted table
 print_servers() {
+    # Array to hold the server details for sorting
+    rows=()
+
+    # Collect server details
     for key in "${!servers[@]}"; do
         if [[ $key =~ ,proxy_pass$ ]]; then
             server_name="${key%,proxy_pass}"
-            printf "%-60s %-50s %-30s %-35s\n" "${servers[$server_name,file_path]}" "$server_name" "${servers[$key]}" "${servers[$server_name,listen]}"
+            rows+=("$(printf "%-60s %-50s %-30s %-35s\n" "${servers[$server_name,file_path]}" "$server_name" "${servers[$key]}" "${servers[$server_name,listen]}")")
         fi
+    done
+
+    # Sort the rows by the server name (the second column)
+    IFS=$'\n' sorted_rows=($(sort -k2 <<<"${rows[*]}"))
+    unset IFS
+
+    # Print sorted server details
+    for row in "${sorted_rows[@]}"; do
+        echo "$row"
     done
 }
 
