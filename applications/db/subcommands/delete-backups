@@ -27,9 +27,11 @@ else
 fi
 
 # check if START_DATE and END_DATE are not empty
-if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
-    log error "Invalid date format!"
-    exit 1
+if [DELETE_ALL == true]; then
+  if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+      log error "Invalid date format!"
+      exit 1
+  fi
 fi
 
 # Check if folder exists
@@ -95,7 +97,11 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         sudo rm "$BACKUPS_PATH/$file"
         log warning "Deleted backup: $file"
     done
-    log ok "Deleted backups for database: $PROVIDED_DATABASE_NAME from $(format_date "$START_DATE") to $(format_date "$END_DATE")"
+    if [DELETE_ALL == true]; then
+      log ok "Deleted backups for database: $PROVIDED_DATABASE_NAME from $(format_date "$START_DATE") to $(format_date "$END_DATE")"
+    else
+      log ok "Deleted all backups for database: $PROVIDED"
+    fi
 else
     log info "Operation cancelled."
 fi
