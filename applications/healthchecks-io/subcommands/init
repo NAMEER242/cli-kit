@@ -1,0 +1,91 @@
+#!/bin/bash
+
+. "$APPLICATION_MANAGER_DIR/common"
+
+# Variables
+CHECK_NAME=$(basename "$1" .sh)
+SERVICE_NAME="$CHECK_NAME.service"
+TIMER_NAME="$CHECK_NAME.timer"
+CHECK_SCRIPT_PATH="$APPLICATION_DIR/checks/$CHECK_NAME.sh"
+
+# Function to check if a check is exists
+validate_check_file() {
+  local path="$1"
+
+  if [ -f "$path" ]; then
+    return 0
+  else
+    log "File does not exist at this path: $path"
+    return 1
+  fi
+}
+
+# Function to check if a systemd service exists
+check_service_exists() {
+    local path="/etc/systemd/system/$1"
+
+      if [ -f "$path" ]; then
+        return 0
+      else
+        log "File does not exist at this path: $path"
+        return 1
+      fi
+}
+
+# Function to create the systemd service and timer
+create_service_and_timer() {
+    local service_name=$1
+    local timer_name=$2
+
+    # Create the service file
+    sudo bash -c "cat > /etc/systemd/system/$service_name" <<EOL
+[Unit]
+Description=Run Healthchecks using a systemd timer service (by cli-kit)
+
+[Service]
+Environment="APPLICATION_MANAGER_DIR=$APPLICATION_MANAGER_DIR"
+Environment="APPLICATION_DIR=$APPLICATION_DIR"
+Type=simple
+ExecStart=$CHECK_SCRIPT_PATH
+EOL
+
+    # Create the timer file
+    sudo bash -c "cat > /etc/systemd/system/$timer_name" <<EOL
+[Unit]
+Description=Run Healthchecks using a systemd timer service (by cli-kit)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=$SERVICE_NAME
+
+[Install]
+WantedBy=timers.target
+EOL
+
+    # Reload systemd to recognize the new service and timer
+    sudo systemctl daemon-reload
+
+    # Enable and start the timer
+    sudo systemctl enable --now $timer_name
+}
+
+# Check if the check file exists
+if validate_check_file "$CHECK_SCRIPT_PATH"; then
+  # Check if the service exists
+  if check_service_exists "$SERVICE_NAME"; then
+    echo "$SERVICE_NAME already exists."
+    # Check if the service is active (running)
+    if systemctl is-active --quiet "$TIMER_NAME"; then
+        echo "$TIMER_NAME is running."
+    else
+        echo "$SERVICE_NAME is not running. Starting it now..."
+        sudo systemctl start "$TIMER_NAME"
+    fi
+  else
+    echo "$SERVICE_NAME does not exist. Creating it now..."
+    create_service_and_timer $SERVICE_NAME $TIMER_NAME
+  fi
+else
+  echo "file not found: $CHECK_SCRIPT_PATH"
+fi

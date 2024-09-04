@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+APPLICATION_DIR="$(dirname "$(readlink -f "$0")")"
+APPLICATION_MANAGER_DIR="$(dirname "$(dirname "$APPLICATION_DIR")")"
+
+. "$APPLICATION_MANAGER_DIR/config.env"
+. "$APPLICATION_MANAGER_DIR/common"
+
+help() {
+    echo "Usage: $(basename $0) <command>"
+    echo
+    echo "This command is used to create and manage health checks using the healthchecks.io platform"
+    echo
+    echo "Commands:"
+    echo "  init         Initialize new check by making new systemd service and timer that is used to schedule a check script (the script should be in the checks folder inside the application folder)."
+    echo "  stop         Stop a scheduled check by disabling and deleting its systemd service and timer."
+    echo "  ls           List checks with there status and information."
+    echo
+    echo "Examples:"
+    echo "  $(basename $0) add mysql-check"
+    echo "  $(basename $0) stop mysql-check"
+    echo "  $(basename $0) ls"
+}
+
+default() {
+  help
+}
+
+# check if the first argument is "-h" or "--help"
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  help
+  exit 0
+fi
+
+# use run_command to run the main script
+run_command $APPLICATION_DIR/subcommands $@

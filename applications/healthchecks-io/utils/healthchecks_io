@@ -1,0 +1,20 @@
+validate_check() {
+  local hc_api_key=$1
+  local hc_api_url=$2
+  local hc_check_name=$3
+
+  # Get all checks
+  local response=$(curl -s -H "X-Api-Key: $hc_api_key" "$hc_api_url/checks/")
+
+  # Check if the check name exists (NOTE: the jq package used to work with json data)
+  local check_exists=$(echo $response | jq -r --arg name "$hc_check_name" '.checks[] | select(.name==$name) | .ping_url')
+
+  # If the check exists, store the ping URL in a variable, else throw an error
+  if [ -n "$check_exists" ]; then
+      local ping_url=$check_exists
+      echo $ping_url
+  else
+      log error "Error: Check with name '$hc_check_name' does not exist on $hc_api_url." >&2
+      exit 1
+  fi
+}

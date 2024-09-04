@@ -1,0 +1,88 @@
+#!/bin/bash
+
+set -e
+
+. "$APPLICATION_MANAGER_DIR/common"
+. "$APPLICATION_DIR/utils/healthchecks_io"
+
+HC_CHECKS_FOLDER="$APPLICATION_DIR/checks"
+
+# Check if the checks folder exists
+if [ ! -d "$HC_CHECKS_FOLDER" ]; then
+  log error "Error: The checks folder does not exist in $HC_CHECKS_FOLDER."
+  exit 1
+fi
+
+# Function to check if a systemd service exists
+check_service_exists() {
+  local path="/etc/systemd/system/$1"
+
+  if [ -f "$path" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to check if a systemd timer exists
+check_timer_exists() {
+  local path="/etc/systemd/system/$1"
+
+  if [ -f "$path" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to check if a systemd timer is active
+check_is_timer_active() {
+  local timer="$1"
+  if systemctl --no-pager --quiet is-active "$timer"; then
+    return 0
+  else
+    log error "systemd timer with name [$timer] is not active."
+    return 1
+  fi
+}
+
+print_table_header() {
+  printf "\n%-30s %-20s %-50s %-50s\n" "Check Name" "Timer Status" "Timer Path" "Service Path"
+  printf '%*s \n' "150" | tr ' ' "="
+}
+
+print_table_data() {
+  # Iterate through all files in the specified folder
+  for file in "$HC_CHECKS_FOLDER"/*; do
+    local check_name=""
+    local check_timer_status="---"
+    local check_timer_path=""
+    local check_service_path=""
+
+    # Check if the file is a script
+    if [ -f "$file" ] && [ -x "$file" ] && [ "${file##*.}" = "sh" ]; then
+      # Get the check name from the file path
+      check_name=$(basename "$file" .sh)
+
+      if check_service_exists "$check_name.service"; then
+        check_service_path="/etc/systemd/system/$check_name.service"
+      fi
+
+      if check_timer_exists "$check_name.timer"; then
+        check_timer_path="/etc/systemd/system/$check_name.timer"
+      fi
+
+      if check_is_timer_active "$check_name.timer"; then
+        check_timer_status="active"
+      else
+        check_timer_status="inactive"
+      fi
+
+      # print data row:
+      printf "%-30s %-20s %-50s %-50s\n" "$check_name" "$check_timer_status" "$check_timer_path" "$check_service_path"
+    fi
+  done
+}
+
+print_table_header
+print_table_data

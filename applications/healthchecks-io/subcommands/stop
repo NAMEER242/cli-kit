@@ -1,0 +1,111 @@
+#!/bin/bash
+
+set -e
+
+. "$APPLICATION_MANAGER_DIR/common"
+. "$APPLICATION_DIR/utils/healthchecks_io"
+
+HC_CHECKS_FOLDER="$APPLICATION_DIR/checks"
+
+# Check if the checks folder exists
+if [ ! -d "$HC_CHECKS_FOLDER" ]; then
+  log error "Error: The checks folder does not exist in $HC_CHECKS_FOLDER."
+  exit 1
+fi
+
+# Function to check if a check file exists
+check_file_exists() {
+  local path="$HC_CHECKS_FOLDER/$1.sh"
+
+  if [ ! -f "$path" ]; then
+    log error "Error: The check file does not exist in $path"
+    exit 0
+  fi
+}
+
+# Function to check if a systemd service exists
+check_service_exists() {
+  local path="/etc/systemd/system/$1"
+
+  if [ -f "$path" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to check if a systemd timer exists
+check_timer_exists() {
+  local path="/etc/systemd/system/$1"
+
+  if [ -f "$path" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to check if a systemd timer is active
+check_is_timer_active() {
+  local timer="$1"
+  if systemctl --no-pager --quiet is-active "$timer"; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Function to deactivate a timer
+deactivate_timer() {
+  local timer="$1"
+
+  if systemctl --no-pager --quiet is-active "$timer"; then
+    systemctl --no-pager --quiet stop "$timer"
+    log ok "deactivating $timer"
+  fi
+}
+
+# Function to delete a service
+delete_service() {
+  local service="$1"
+
+  if check_service_exists "$service"; then
+    sudo rm "/etc/systemd/system/$service"
+    log ok "deleting /etc/systemd/system/$service"
+  fi
+}
+
+# Function to delete a timer
+delete_timer() {
+  local timer="$1"
+
+  if check_timer_exists "$timer"; then
+    sudo rm "/etc/systemd/system/$timer"
+    log ok "deleting /etc/systemd/system/$timer"
+  fi
+}
+
+# Check if the file name is provided as an argument
+if [ -z "$1" ]; then
+  log error "Error: Please provide a file name as an argument."
+  exit 1
+fi
+
+# Get the file name from the argument
+file_name="$1"
+
+# Check if the file exists
+check_file_exists "$file_name"
+
+# Deactivate the timer
+deactivate_timer "$file_name.timer"
+
+# Delete the service
+delete_service "$file_name.service"
+
+# Delete the timer
+delete_timer "$file_name.timer"
+
+sudo systemctl daemon-reload
+
+log ok "The check [$file_name] service and timer have been deactivated and deleted successfully."
